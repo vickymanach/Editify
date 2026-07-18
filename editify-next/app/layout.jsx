@@ -1,9 +1,9 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Editify — The first video editor with AI at its core",
+  title: "Editify · The first video editor with AI at its core",
   description:
-    "Editify analyses your content and performance patterns, then builds personalised templates that edit in your style. Edit less. Create more.",
+    "Editify analyses your content and performance patterns, then builds personalised templates that edit in your style. Create more. In less time.",
 };
 
 export default function RootLayout({ children }) {

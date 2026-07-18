@@ -6,38 +6,58 @@ const WAITLIST_HREF =
   "mailto:marta@folch.org?subject=Editify%20waitlist&body=Hi%20Editify%20team%2C%20add%20me%20to%20the%20waitlist!";
 const PROTOTYPE_URL = "https://style-wise-creator.lovable.app/";
 
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
 export default function Home() {
-  const [paused, setPaused] = useState(false);
   const [demoStarted, setDemoStarted] = useState(false);
-  const [timecode, setTimecode] = useState("00:00:00:00");
+  const [clock, setClock] = useState("4:00:00");
   const [counterText, setCounterText] = useState("240");
-  const [counterCaption, setCounterCaption] = useState(" min");
+  const [counterUnit, setCounterUnit] = useState("min");
+  const [counterCap, setCounterCap] = useState(
+    "the average manual edit for one short-form video"
+  );
   const fillRef = useRef(null);
   const headRef = useRef(null);
+  const heroRef = useRef(null);
+  const heroTimerRef = useRef(null);
+  const heroRevealRef = useRef(null);
   const tiltRef = useRef(null);
   const countRef = useRef(null);
 
-  // pause/play page animations
-  useEffect(() => {
-    document.body.classList.toggle("paused", paused);
-  }, [paused]);
-
-  // scroll timeline + running timecode
+  // scroll: progress bar + hero countdown + hero crossfade
   useEffect(() => {
     const onScroll = () => {
       const max = document.documentElement.scrollHeight - window.innerHeight;
       const p = max > 0 ? window.scrollY / max : 0;
       if (fillRef.current) fillRef.current.style.width = p * 100 + "%";
       if (headRef.current) headRef.current.style.left = p * 100 + "%";
-      const total = p * 180; // the page as a 3-minute film
-      const m = String(Math.floor(total / 60)).padStart(2, "0");
-      const s = String(Math.floor(total % 60)).padStart(2, "0");
-      const f = String(Math.floor((total % 1) * 24)).padStart(2, "0");
-      setTimecode(`00:${m}:${s}:${f}`);
+
+      const hero = heroRef.current;
+      const timer = heroTimerRef.current;
+      const reveal = heroRevealRef.current;
+      if (!hero || !timer || !reveal) return;
+      const hMax = hero.offsetHeight - window.innerHeight;
+      const hp = clamp(hMax > 0 ? window.scrollY / hMax : 1, 0, 1);
+      const tp = clamp(hp / 0.62, 0, 1);
+      const remaining = Math.round(14400 * (1 - tp));
+      const hh = Math.floor(remaining / 3600);
+      const mm = String(Math.floor((remaining % 3600) / 60)).padStart(2, "0");
+      const ss = String(remaining % 60).padStart(2, "0");
+      setClock(`${hh}:${mm}:${ss}`);
+      timer.style.opacity = hp < 0.62 ? 1 : clamp(1 - (hp - 0.62) / 0.12, 0, 1);
+      timer.style.transform = `scale(${1 - hp * 0.08})`;
+      const rp = clamp((hp - 0.72) / 0.22, 0, 1);
+      reveal.style.opacity = rp;
+      reveal.style.transform = `translateY(${30 * (1 - rp)}px)`;
+      reveal.style.pointerEvents = rp > 0.6 ? "auto" : "none";
     };
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
     onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, []);
 
   // reveal on scroll
@@ -56,16 +76,11 @@ export default function Home() {
     return () => io.disconnect();
   }, []);
 
-  // hero 3D tilt
+  // screenshot 3D tilt
   useEffect(() => {
     const onMove = (e) => {
       const tilt = tiltRef.current;
-      if (!tilt) return;
-      if (
-        window.matchMedia("(max-width:860px)").matches ||
-        document.body.classList.contains("paused")
-      )
-        return;
+      if (!tilt || window.matchMedia("(max-width:860px)").matches) return;
       const r = tilt.getBoundingClientRect();
       if (r.bottom < 0 || r.top > window.innerHeight) return;
       const x = (e.clientX / window.innerWidth - 0.5) * 7;
@@ -96,7 +111,8 @@ export default function Home() {
               requestAnimationFrame(step);
             } else {
               setCounterText("0.5");
-              setCounterCaption(" min — with editify");
+              setCounterUnit("min");
+              setCounterCap("with editify");
             }
           };
           requestAnimationFrame(step);
@@ -121,59 +137,52 @@ export default function Home() {
           <a href="#pricing">Pricing</a>
           <a href="#team">Team</a>
         </div>
-        <div className="right">
-          <span className="timecode">{timecode}</span>
-          <button
-            className="playpause"
-            title="Play / pause the page"
-            aria-label="Play or pause animations"
-            onClick={() => setPaused((p) => !p)}
-          >
-            {paused ? (
-              <svg viewBox="0 0 12 12">
-                <path d="M2 1.2v9.6c0 .9 1 1.5 1.8 1L11 7c.8-.5.8-1.6 0-2.1L3.8.2C3 -.3 2 .3 2 1.2z" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 12 12">
-                <rect x="1" y="1" width="3.4" height="10" rx="1" />
-                <rect x="7.6" y="1" width="3.4" height="10" rx="1" />
-              </svg>
-            )}
-          </button>
-          <a className="cta-mini" href={WAITLIST_HREF}>
-            Join waitlist
-          </a>
-        </div>
+        <a className="cta-mini" href={WAITLIST_HREF}>
+          Join waitlist
+        </a>
       </nav>
       <div id="scrubber">
         <div className="fill" ref={fillRef} />
         <div className="head" ref={headRef} />
       </div>
 
-      {/* HERO */}
-      <section id="hero">
-        <div className="glow" />
-        <div className="logo-hero wordmark">editify</div>
-        <h1>
-          <span className="shimmer">Edit less.</span>
-          <br />
-          Create more.
-        </h1>
-        <p className="tagline">The first video editor with AI at its core.</p>
-        <div className="actions">
-          <a className="btn" href={WAITLIST_HREF}>
-            Join the waitlist
-          </a>
-          <a className="btn ghost" href="#demo">
-            ▶&nbsp; Watch it work
-          </a>
+      {/* HERO: scroll-driven countdown */}
+      <section id="hero" ref={heroRef}>
+        <div className="hero-sticky">
+          <div className="glow" />
+          <div className="hero-timer" ref={heroTimerRef}>
+            <div className="clock">{clock}</div>
+            <div className="cap">the editing time behind one 30-second reel</div>
+            <div className="hint">Scroll</div>
+          </div>
+          <div className="hero-reveal" ref={heroRevealRef}>
+            <div className="logo-hero wordmark">editify</div>
+            <h1>
+              <span className="shimmer">Create more.</span>
+              <br />
+              In less time.
+            </h1>
+            <p className="tagline">The first video editor with AI at its core.</p>
+            <div className="actions">
+              <a className="btn" href={WAITLIST_HREF}>
+                Join the waitlist
+              </a>
+              <a className="btn ghost" href="#demo">
+                Watch it work
+              </a>
+            </div>
+          </div>
         </div>
-        <div className="hero-shot">
+      </section>
+
+      {/* PRODUCT SHOT */}
+      <section id="shot">
+        <div className="hero-shot reveal">
           <div className="frame" ref={tiltRef}>
             <img src="/ui.jpg" alt="The Editify AI editor interface" />
           </div>
         </div>
-        <div className="strip">
+        <div className="strip reveal">
           <div className="clips">
             <div className="clip c1" />
             <div className="clip c2" />
@@ -195,7 +204,6 @@ export default function Home() {
       {/* PROBLEM */}
       <section id="problem">
         <div className="container">
-          <div className="tc-marker reveal">Scene 01 · The problem</div>
           <h2 className="big reveal">
             Behind a 30-second reel,
             <br />
@@ -204,39 +212,28 @@ export default function Home() {
           <div className="counter-wrap reveal">
             <div className="num">
               <span ref={countRef}>{counterText}</span>
-              <span className="grad-text" style={{ fontSize: ".45em" }}>
-                {counterCaption}
-              </span>
+              <span className="unit grad-text">{counterUnit}</span>
             </div>
-            <div className="cap">the average manual edit, for one short-form video</div>
+            <div className="cap">{counterCap}</div>
           </div>
           <div className="cards3">
             <div className="pcard reveal">
-              <span className="tclabel">CLIP 01</span>
               <div className="bar" />
               <h3>Time-consuming</h3>
-              <p>
-                Creators spend hours manually editing footage — trimming clips, syncing
-                music, adding effects.
-              </p>
+              <p>Hours of trimming clips, syncing music and adding effects.</p>
             </div>
             <div className="pcard reveal" style={{ transitionDelay: ".12s" }}>
-              <span className="tclabel">CLIP 02</span>
               <div className="bar" />
               <h3>Overwhelming</h3>
               <p>
-                Social media moves fast. Keeping up with daily posting and shifting trends
-                is hard.
+                Social media moves fast. Daily posting and shifting trends are hard to
+                keep up with.
               </p>
             </div>
             <div className="pcard reveal" style={{ transitionDelay: ".24s" }}>
-              <span className="tclabel">CLIP 03</span>
               <div className="bar" />
               <h3>Repetitive</h3>
-              <p>
-                Recreating your style by hand, video after video, eats time you should
-                spend creating.
-              </p>
+              <p>Recreating your style by hand, video after video.</p>
             </div>
           </div>
         </div>
@@ -245,18 +242,14 @@ export default function Home() {
       {/* SOLUTION */}
       <section id="solution">
         <div className="container" style={{ textAlign: "center" }}>
-          <div className="tc-marker reveal" style={{ justifyContent: "center", display: "flex" }}>
-            Scene 02 · The cut
-          </div>
           <h2 className="big reveal">
             That&apos;s why we built
             <br />
             <span className="grad-text">editify.</span>
           </h2>
           <p className="sub reveal" style={{ marginLeft: "auto", marginRight: "auto" }}>
-            An AI video editor that <strong>analyses your content and performance patterns</strong>,
-            then builds <strong>personalised templates</strong> to automate the editing process —
-            in your style.
+            An AI video editor that <strong>learns your style</strong> and{" "}
+            <strong>builds personalised templates</strong> to automate your editing.
           </p>
           <div className="feat3">
             <div className="fcard reveal">
@@ -268,8 +261,8 @@ export default function Home() {
               </div>
               <h3>Predicts what performs</h3>
               <p>
-                Editify studies your past videos and live trends, then predicts the styles
-                most likely to hit — before you post.
+                Editify studies your past videos and live trends to predict the styles
+                most likely to hit.
               </p>
             </div>
             <div className="fcard reveal" style={{ transitionDelay: ".12s" }}>
@@ -281,8 +274,8 @@ export default function Home() {
               </div>
               <h3>Edits in your style</h3>
               <p>
-                Pattern recognition learns your cuts, captions, pacing and colour — so
-                every AI edit still looks like <em>you</em>.
+                It learns your cuts, captions, pacing and colour. Every edit still looks
+                like <em>you</em>.
               </p>
             </div>
             <div className="fcard reveal" style={{ transitionDelay: ".24s" }}>
@@ -294,8 +287,8 @@ export default function Home() {
               </div>
               <h3>Removes repetitive work</h3>
               <p>
-                First cuts, beat-syncing, captions and reframing happen automatically. You
-                keep full manual control over every AI edit.
+                First cuts, beat-syncing and captions happen automatically. You keep full
+                manual control.
               </p>
             </div>
           </div>
@@ -305,16 +298,12 @@ export default function Home() {
       {/* SHOWCASE */}
       <section id="showcase">
         <div className="container" style={{ textAlign: "center" }}>
-          <div className="tc-marker reveal" style={{ justifyContent: "center", display: "flex" }}>
-            Scene 03 · The editor
-          </div>
           <h2 className="big reveal">
             Your style, <span className="grad-text">learned.</span>
           </h2>
           <p className="sub reveal" style={{ marginLeft: "auto", marginRight: "auto" }}>
-            Import your footage and Editify builds a first cut in seconds — hook
-            front-loaded, beat-synced, in the format you need. Then direct the AI like an
-            editor: <strong>&quot;make the intro punchier and add the trending sound.&quot;</strong>
+            Editify builds a first cut in seconds. Then direct the AI like an editor:{" "}
+            <strong>&quot;make the intro punchier and add the trending sound.&quot;</strong>
           </p>
           <div className="showcase-img reveal">
             <img
@@ -349,20 +338,16 @@ export default function Home() {
       {/* DEMO */}
       <section id="demo">
         <div className="container">
-          <div className="tc-marker reveal">Scene 04 · Press play</div>
           <h2 className="big reveal">
             See the <span className="grad-text">prototype.</span>
           </h2>
-          <p className="sub reveal">
-            This is the real thing — our working prototype, live in your browser. Press
-            play.
-          </p>
+          <p className="sub reveal">Our working prototype, live in your browser. Press play.</p>
           <div className="player reveal">
             <div className="bar-top">
               <span className="dot d1" />
               <span className="dot d2" />
               <span className="dot d3" />
-              <span className="title">editify — prototype.mov</span>
+              <span className="title">editify · prototype.mov</span>
             </div>
             <div className="screen">
               {demoStarted && (
@@ -401,55 +386,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* HACKATHON */}
-      <section id="hackathon">
-        <div className="container wrap">
-          <div>
-            <div className="tc-marker reveal">Scene 05 · The origin</div>
-            <h2 className="big reveal">
-              Born in a<br />
-              <span className="grad-text">hackathon.</span>
-            </h2>
-            <p className="sub reveal">
-              Editify started when we were invited to the <strong>ElevenLabs × Cala</strong>{" "}
-              startup hackathon — where we developed the idea and built our first
-              prototype. We haven&apos;t stopped editing since.
-            </p>
-            <div className="badges reveal">
-              <div className="badge">
-                <small>Invited by</small>ElevenLabs
-              </div>
-              <div className="badge">
-                <small>× Startup</small>Cala
-              </div>
-              <div className="badge">
-                <small>Format</small>Hackathon → Prototype
-              </div>
-            </div>
-          </div>
-          <div className="hack-visual reveal">
-            <div className="node n1">
-              Idea<small>one insight: editing is the bottleneck</small>
-            </div>
-            <div className="node n0">
-              editify<small>the first cut</small>
-            </div>
-            <div className="node n2">
-              Prototype<small>built &amp; demoed live</small>
-            </div>
-            <div className="node n3">
-              Momentum<small>backed by our community</small>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* AUDIENCE */}
       <section id="audience">
         <div className="container">
-          <div className="tc-marker reveal" style={{ justifyContent: "center", display: "flex" }}>
-            Scene 06 · Who it&apos;s for
-          </div>
           <h2 className="big reveal">
             Made for the creators
             <br />
@@ -458,17 +397,11 @@ export default function Home() {
           <div className="row">
             <div className="acard reveal">
               <div className="big-n grad-text">0–150K</div>
-              <p>
-                We&apos;re built for micro-influencers — the creators growing fastest and
-                editing hardest.
-              </p>
+              <p>Built for micro-influencers, the creators growing fastest and editing hardest.</p>
             </div>
             <div className="acard reveal" style={{ transitionDelay: ".12s" }}>
               <div className="big-n grad-text">Full-time</div>
-              <p>
-                For people who want to turn content creation into a full-time job — and
-                get their hours back.
-              </p>
+              <p>For people turning content creation into a full-time job.</p>
             </div>
             <div className="acard reveal" style={{ transitionDelay: ".24s" }}>
               <div className="big-n grad-text">First-hand</div>
@@ -481,9 +414,6 @@ export default function Home() {
       {/* PRICING */}
       <section id="pricing">
         <div className="container" style={{ textAlign: "center" }}>
-          <div className="tc-marker reveal" style={{ justifyContent: "center", display: "flex" }}>
-            Scene 07 · Plans
-          </div>
           <h2 className="big reveal">
             Free to start.
             <br />
@@ -500,10 +430,10 @@ export default function Home() {
               <div className="annual">No card required</div>
               <ul>
                 <li>Core editing suite</li>
-                <li>Advanced AI edits — included</li>
+                <li>Advanced AI edits included</li>
                 <li>720p exports · 3 projects</li>
               </ul>
-              <a className="btn ghost" href="mailto:marta@folch.org?subject=Editify%20waitlist%20—%20Free">
+              <a className="btn ghost" href="mailto:marta@folch.org?subject=Editify%20waitlist%20Free">
                 Start free
               </a>
             </div>
@@ -517,11 +447,11 @@ export default function Home() {
               <div className="annual">or €9,60/mo billed annually</div>
               <ul>
                 <li>Everything in Free</li>
-                <li>Pattern recognition — learns your editing style</li>
+                <li>Pattern recognition that learns your style</li>
                 <li>4K exports · unlimited projects</li>
                 <li>Priority AI rendering</li>
               </ul>
-              <a className="btn" href="mailto:marta@folch.org?subject=Editify%20waitlist%20—%20Creator">
+              <a className="btn" href="mailto:marta@folch.org?subject=Editify%20waitlist%20Creator">
                 Go Creator
               </a>
             </div>
@@ -538,7 +468,7 @@ export default function Home() {
                 <li>Team workspaces &amp; shared styles</li>
                 <li>API access &amp; brand kits</li>
               </ul>
-              <a className="btn ghost" href="mailto:marta@folch.org?subject=Editify%20waitlist%20—%20Studio">
+              <a className="btn ghost" href="mailto:marta@folch.org?subject=Editify%20waitlist%20Studio">
                 Scale up
               </a>
             </div>
@@ -549,59 +479,46 @@ export default function Home() {
       {/* TEAM */}
       <section id="team">
         <div className="container">
-          <div className="tc-marker reveal" style={{ justifyContent: "center", display: "flex" }}>
-            Scene 08 · The team
-          </div>
           <h2 className="big reveal" style={{ textAlign: "center" }}>
             Active. Passionate.
             <br />
             <span className="grad-text">Entrepreneurial.</span>
           </h2>
-          <p className="sub reveal" style={{ margin: "24px auto 0", textAlign: "center" }}>
-            Two founders, two continents, one obsession: giving creators their time back.
-          </p>
           <div className="founders">
             <div className="founder reveal">
-              <div className="head">
+              <div className="ring">
                 <img src="/victoria.jpg" alt="Victoria Mañach" />
-                <div className="who">
-                  <h3>Victoria Mañach</h3>
-                  <div className="loc">Co-founder · London (UK)</div>
-                  <a className="mail" href="mailto:victoriamanach@gmail.com">
-                    victoriamanach@gmail.com
-                  </a>
-                </div>
               </div>
-              <ul>
-                <li>Co-founder of Acceler8 — backed by YC founders, raised £7.5M</li>
-                <li>
-                  Challenge Leader for Student Minds: £150K+ raised, £3M with charity
-                  partners
-                </li>
-                <li>TEDx speaker</li>
-                <li>DJ &amp; avid trekker</li>
-              </ul>
+              <h3>Victoria Mañach</h3>
+              <div className="loc">Co-founder · London (UK)</div>
+              <p className="one-liner">Builder and storyteller. Raised millions before graduating.</p>
+              <div className="tags">
+                <span className="tag hl">Acceler8 co-founder · £7.5M raised</span>
+                <span className="tag">TEDx speaker</span>
+                <span className="tag">£3M raised for charity</span>
+                <span className="tag">DJ &amp; trekker</span>
+              </div>
+              <a className="mail" href="mailto:victoriamanach@gmail.com">
+                victoriamanach@gmail.com
+              </a>
             </div>
             <div className="founder reveal" style={{ transitionDelay: ".12s" }}>
-              <div className="head">
+              <div className="ring">
                 <img src="/marta.jpg" alt="Marta Folch" />
-                <div className="who">
-                  <h3>Marta Folch</h3>
-                  <div className="loc">Co-founder · Boston (USA)</div>
-                  <a className="mail" href="mailto:marta@folch.org">
-                    marta@folch.org
-                  </a>
-                </div>
               </div>
-              <ul>
-                <li>Serial entrepreneur: Circul8 and HelpUp</li>
-                <li>RISE Rhodes-Schmidt Global Fellow</li>
-                <li>
-                  e-Board at eTower — Boston&apos;s oldest live-in incubator ($3B created
-                  by alumni)
-                </li>
-                <li>TEDx speaker · violinist · lived in Japan for 2 years</li>
-              </ul>
+              <h3>Marta Folch</h3>
+              <div className="loc">Co-founder · Boston (USA)</div>
+              <p className="one-liner">Serial entrepreneur. Two startups before Editify.</p>
+              <div className="tags">
+                <span className="tag hl">Founded Circul8 &amp; HelpUp</span>
+                <span className="tag">RISE Rhodes-Schmidt Fellow</span>
+                <span className="tag">eTower e-Board</span>
+                <span className="tag">TEDx speaker</span>
+                <span className="tag">Violinist · 2 years in Japan</span>
+              </div>
+              <a className="mail" href="mailto:marta@folch.org">
+                marta@folch.org
+              </a>
             </div>
           </div>
           <div className="backed reveal">
@@ -619,15 +536,10 @@ export default function Home() {
       {/* FINAL CTA */}
       <section id="final">
         <div className="glow" />
-        <h2>
-          Ready to
-          <br />
-          <span className="grad-text">roll credits</span> on manual editing?
-        </h2>
-        <p className="sub in" style={{ margin: "26px auto 0", textAlign: "center" }}>
+        <p className="sub in" style={{ margin: "0 auto", textAlign: "center", position: "relative" }}>
           Be first in line when Editify launches.
         </p>
-        <div style={{ marginTop: 40, position: "relative" }}>
+        <div style={{ marginTop: 34, position: "relative" }}>
           <a className="btn" style={{ fontSize: 18, padding: "18px 44px" }} href={WAITLIST_HREF}>
             Join the waitlist
           </a>
